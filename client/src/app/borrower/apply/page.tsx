@@ -2,9 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAppSelector, useAppDispatch } from '@/hooks/useRedux';
-import { setUser, logout } from '@/store/authSlice';
-import { borrowerAPI, documentAPI, loanAPI } from '@/services/api';
+import { useAppSelector, useAppDispatch } from '../../../hooks/useRedux';
+import { setUser, logout } from '../../../store/authSlice';
+import { borrowerAPI, documentAPI, loanAPI } from '../../../services/api';
 import toast from 'react-hot-toast';
 
 // ============================================================

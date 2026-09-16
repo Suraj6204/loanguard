@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { operationsAPI, loanAPI, documentAPI } from '@/services/api';
+import { operationsAPI, loanAPI, documentAPI } from '../../../services/api';
 import toast from 'react-hot-toast';
 
 const STATUS_STYLES: Record<string, string> = {

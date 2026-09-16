@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { useAppSelector, useAppDispatch } from '@/hooks/useRedux';
-import { logout } from '@/store/authSlice';
+import { useAppSelector, useAppDispatch } from '../../hooks/useRedux';
+import { logout } from '../../store/authSlice';
 
 const ROLE_MENUS: Record<string, { label: string; path: string; icon: string }[]> = {
   Admin: [

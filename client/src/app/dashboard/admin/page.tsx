@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { operationsAPI } from '@/services/api';
+import { operationsAPI } from '../../../services/api';
 import toast from 'react-hot-toast';
 
 export default function AdminDashboard() {

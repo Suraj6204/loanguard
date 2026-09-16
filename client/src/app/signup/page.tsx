@@ -3,8 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useAppDispatch, useAppSelector } from '@/hooks/useRedux';
-import { registerUser, clearError } from '@/store/authSlice';
+import { useAppDispatch, useAppSelector } from '../../hooks/useRedux';
+import { registerUser, clearError } from '../../store/authSlice';
 import toast from 'react-hot-toast';
 
 export default function SignupPage() {

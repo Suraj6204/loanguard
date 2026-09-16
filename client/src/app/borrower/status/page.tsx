@@ -2,9 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAppSelector, useAppDispatch } from '@/hooks/useRedux';
-import { logout } from '@/store/authSlice';
-import { loanAPI } from '@/services/api';
+import { useAppSelector, useAppDispatch } from '../../../hooks/useRedux';
+import { logout } from '../../../store/authSlice';
+import { loanAPI } from '../../../services/api';
 import toast from 'react-hot-toast';
 
 const STATUS_STYLES: Record<string, string> = {

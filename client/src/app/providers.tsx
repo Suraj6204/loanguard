@@ -1,10 +1,10 @@
 'use client';
 
 import { Provider } from 'react-redux';
-import { store } from '@/store';
+import { store } from '../store';
 import { Toaster } from 'react-hot-toast';
 import { useEffect } from 'react';
-import { hydrateAuth } from '@/store/authSlice';
+import { hydrateAuth } from '../store/authSlice';
 
 export function Providers({ children }: { children: React.ReactNode }) {
   useEffect(() => {
