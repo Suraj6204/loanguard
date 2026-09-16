@@ -208,7 +208,7 @@ export const sanction = async (req: Request, res: Response) => {
       actorRole,
       action: AuditAction.LOAN_APPROVED,
       entityType: EntityType.LOAN_APPLICATION,
-      entityId: new Types.ObjectId(loanId),
+      entityId: new Types.ObjectId(loanId as string),
       previousState: { status: previousStatus },
       newState: { status: LoanStatus.SANCTIONED, sanctionedBy: actorId },
       ipAddress,
@@ -256,7 +256,7 @@ export const reject = async (req: Request, res: Response) => {
       actorRole,
       action: AuditAction.LOAN_REJECTED,
       entityType: EntityType.LOAN_APPLICATION,
-      entityId: new Types.ObjectId(loanId),
+      entityId: new Types.ObjectId(loanId as string),
       previousState: { status: previousStatus },
       newState: { status: LoanStatus.REJECTED, rejectionReason: reason },
       metadata: { reason },
@@ -300,7 +300,7 @@ export const disburse = async (req: Request, res: Response) => {
       actorRole,
       action: AuditAction.LOAN_DISBURSED,
       entityType: EntityType.LOAN_APPLICATION,
-      entityId: new Types.ObjectId(loanId),
+      entityId: new Types.ObjectId(loanId as string),
       previousState: { status: previousStatus },
       newState: { status: LoanStatus.DISBURSED, disbursedBy: actorId },
       ipAddress,
@@ -389,7 +389,7 @@ export const recordPayment = async (req: Request, res: Response) => {
         actorRole,
         action: AuditAction.LOAN_CLOSED,
         entityType: EntityType.LOAN_APPLICATION,
-        entityId: new Types.ObjectId(loanId),
+        entityId: new Types.ObjectId(loanId as string),
         previousState: { status: LoanStatus.DISBURSED },
         newState: { status: LoanStatus.CLOSED, totalPaid: newTotalPaid },
         metadata: { reason: 'FULLY_PAID' },
@@ -426,7 +426,7 @@ export const getTimeline = async (req: Request, res: Response) => {
   try {
     const loanId = req.params.id;
     const logs = await AuditLog.find({
-      entityId: new Types.ObjectId(loanId),
+      entityId: new Types.ObjectId(loanId as string),
       entityType: { $in: [EntityType.LOAN_APPLICATION, EntityType.PAYMENT] },
     })
       .sort({ createdAt: 1 })

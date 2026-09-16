@@ -94,6 +94,7 @@ export interface ILoanApplication {
   sanctionedAt?: Date;
   disbursedBy?: Types.ObjectId;
   disbursedAt?: Date;
+  disbursementUtr?: string;
   createdAt: Date;
   updatedAt: Date;
 }

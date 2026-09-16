@@ -284,3 +284,39 @@ npm run dev      # Start Next.js dev server
 npm run build    # Production build
 npm run start    # Serve production build
 ```
+
+---
+
+## Deployment
+
+### Deploy Backend (Render / Railway / any Node host)
+
+1. Set the **Root Directory** to `server`.
+2. **Build Command**: `npm install && npm run build`
+3. **Start Command**: `npm run start`
+4. Set these **Environment Variables** on the hosting platform:
+   ```
+   NODE_ENV=production
+   PORT=5000
+   MONGODB_URI=<your-atlas-connection-string>
+   JWT_SECRET=<strong-random-secret>
+   JWT_EXPIRES_IN=24h
+   CORS_ORIGIN=https://your-frontend-domain.com
+   ```
+5. After the first deploy, run the seed (one-time via shell/console):
+   ```bash
+   npm run seed
+   ```
+
+### Deploy Frontend (Vercel / Render / any Node host)
+
+1. Set the **Root Directory** to `client`.
+2. **Build Command**: `npm install && npm run build`
+3. **Start Command**: `npm run start`
+4. Set these **Environment Variables** on the hosting platform:
+   ```
+   NEXT_PUBLIC_API_URL=https://your-backend-domain.com
+   ```
+
+> **Note:** The Next.js `rewrites` in `next.config.js` proxy all `/api/*` requests to the backend URL. This means the frontend and backend can be deployed on different domains without CORS issues on the client side. Just make sure the backend's `CORS_ORIGIN` env var matches your frontend's deployed URL.
+

@@ -91,8 +91,8 @@ export const updateProfile = async (req: Request, res: Response) => {
 
     // Run BRE
     const breResult = evaluateBRE({
-      dateOfBirth: user.dateOfBirth,
-      monthlySalary: user.monthlySalary,
+      dateOfBirth: user.dateOfBirth!,
+      monthlySalary: user.monthlySalary!,
       pan: user.pan!,
       employmentMode: user.employmentMode as EmploymentMode,
     });

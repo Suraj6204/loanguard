@@ -33,12 +33,12 @@ export const upload = async (req: Request, res: Response) => {
 
     // 2. Extension
     const extension = getFileExtension(file.originalname);
-    const extValid = DOCUMENT_CONFIG.ALLOWED_EXTENSIONS.includes(extension);
+    const extValid = (DOCUMENT_CONFIG.ALLOWED_EXTENSIONS as readonly string[]).includes(extension);
     steps.push({ step: 'EXTENSION_CHECK', passed: extValid, message: extValid ? 'Ext OK' : 'Ext invalid' });
     if (!extValid) overallValid = false;
 
     // 3. MIME
-    const mimeValid = DOCUMENT_CONFIG.ALLOWED_MIME_TYPES.includes(file.mimetype);
+    const mimeValid = (DOCUMENT_CONFIG.ALLOWED_MIME_TYPES as readonly string[]).includes(file.mimetype);
     steps.push({ step: 'MIME_CHECK', passed: mimeValid, message: mimeValid ? 'MIME OK' : 'MIME invalid' });
     if (!mimeValid) overallValid = false;
 
@@ -50,7 +50,7 @@ export const upload = async (req: Request, res: Response) => {
       detectedType = result ?? undefined;
 
       if (detectedType) {
-        const magicValid = DOCUMENT_CONFIG.ALLOWED_MIME_TYPES.includes(detectedType.mime);
+        const magicValid = (DOCUMENT_CONFIG.ALLOWED_MIME_TYPES as readonly string[]).includes(detectedType.mime);
         steps.push({ step: 'MAGIC_BYTE_CHECK', passed: magicValid, message: magicValid ? 'Magic OK' : 'Magic mismatch' });
         if (!magicValid) overallValid = false;
       } else {

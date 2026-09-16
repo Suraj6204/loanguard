@@ -38,8 +38,8 @@ export const getSalesLeads = async (req: Request, res: Response) => {
     // Get document uploads for these users
     const documents = await mongoose.model('Document').find({
       uploadedBy: { $in: userIds },
-    }).select('uploadedBy').lean() as { uploadedBy: any }[];
-    const docSet = new Set(documents.map((d: any) => d.uploadedBy.toString()));
+    }).select('uploadedBy').lean() as unknown as { uploadedBy: any }[];
+    const docSet = new Set(documents.map((d) => d.uploadedBy.toString()));
 
     const enrichedUsers = users.map((user) => {
       const appStatus = appMap.get(user._id.toString());
