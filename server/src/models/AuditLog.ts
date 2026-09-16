@@ -43,7 +43,7 @@ const auditLogSchema = new Schema<IAuditLogDocument>(
     timestamps: { createdAt: true, updatedAt: false },
     toJSON: {
       transform(_doc, ret) {
-        delete ret.__v;
+        delete (ret as any).__v;
         return ret;
       },
     },

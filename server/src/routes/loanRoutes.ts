@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { loanController } from '../controllers/loanController';
+import * as loanController from '../controllers/loanController';
 import { authenticate, authorize } from '../middleware/auth';
 import { validate } from '../middleware/validate';
 import { loanApplicationSchema, rejectLoanSchema, paymentSchema } from '../validators';
@@ -12,65 +12,65 @@ router.use(authenticate);
 // Borrower endpoints
 router.post(
   '/calculate',
-  (req, res, next) => loanController.calculate(req, res, next)
+  authorize(UserRole.BORROWER),
+  loanController.calculate
 );
 
 router.post(
-  '/',
+  '/apply',
   authorize(UserRole.BORROWER),
   validate(loanApplicationSchema),
-  (req, res, next) => loanController.create(req, res, next)
+  loanController.create
 );
 
 router.get(
   '/me',
   authorize(UserRole.BORROWER),
-  (req, res, next) => loanController.getMyApplications(req, res, next)
+  loanController.getMyApplications
 );
 
-// Loan details & timeline (accessible by authenticated users, resource-level auth in service)
-router.get(
-  '/:id',
-  (req, res, next) => loanController.getById(req, res, next)
-);
-
-router.get(
-  '/:id/timeline',
-  (req, res, next) => loanController.getTimeline(req, res, next)
-);
-
-router.get(
-  '/:id/payments',
-  (req, res, next) => loanController.getPayments(req, res, next)
-);
-
-// Sanction operations
+// Operations endpoints
 router.post(
   '/:id/sanction',
   authorize(UserRole.SANCTION, UserRole.ADMIN),
-  (req, res, next) => loanController.sanction(req, res, next)
+  loanController.sanction
 );
 
 router.post(
   '/:id/reject',
   authorize(UserRole.SANCTION, UserRole.ADMIN),
   validate(rejectLoanSchema),
-  (req, res, next) => loanController.reject(req, res, next)
+  loanController.reject
 );
 
-// Disbursement operations
 router.post(
   '/:id/disburse',
   authorize(UserRole.DISBURSEMENT, UserRole.ADMIN),
-  (req, res, next) => loanController.disburse(req, res, next)
+  loanController.disburse
 );
 
-// Collection operations
 router.post(
   '/:id/payments',
   authorize(UserRole.COLLECTION, UserRole.ADMIN),
   validate(paymentSchema),
-  (req, res, next) => loanController.recordPayment(req, res, next)
+  loanController.recordPayment
+);
+
+router.get(
+  '/:id/payments',
+  authorize(UserRole.COLLECTION, UserRole.ADMIN, UserRole.BORROWER),
+  loanController.getPayments
+);
+
+router.get(
+  '/:id/timeline',
+  loanController.getTimeline
+);
+
+// Get by ID (Keep last)
+router.get(
+  '/:id',
+  loanController.getById
 );
 
 export default router;

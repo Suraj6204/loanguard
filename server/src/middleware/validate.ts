@@ -1,19 +1,21 @@
 import { Request, Response, NextFunction } from 'express';
-import { ZodSchema } from 'zod';
-import { sendError } from '../utils/response';
+import { AnyZodObject, ZodError } from 'zod';
 
-export function validate(schema: ZodSchema) {
-  return (req: Request, res: Response, next: NextFunction): void => {
-    const result = schema.safeParse(req.body);
-    if (!result.success) {
-      const errors = result.error.errors.map((e) => ({
-        field: e.path.join('.'),
-        message: e.message,
-      }));
-      sendError(res, 'Validation failed', 422, 'VALIDATION_ERROR', { errors });
-      return;
+export const validate = (schema: AnyZodObject) => {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      req.body = await schema.parseAsync(req.body);
+      next();
+    } catch (error) {
+      if (error instanceof ZodError) {
+        const errors = error.errors.map((e) => ({
+          path: e.path.join('.'),
+          message: e.message,
+        }));
+        res.status(422).json({ success: false, message: 'Validation failed', code: 'VALIDATION_ERROR', details: { errors } });
+        return;
+      }
+      res.status(500).json({ success: false, message: 'Internal server error', code: 'INTERNAL_ERROR' });
     }
-    req.body = result.data;
-    next();
   };
-}
+};

@@ -31,7 +31,7 @@ function ProfileStep({ onComplete, user }: { onComplete: () => void; user: any }
     try {
       const res = await borrowerAPI.updateProfile({
         ...form,
-        monthlySalary: Number(form.monthlySalary),
+        monthlySalary: Number(form.monthlySalary.toString().replace(/,/g, '')),
       });
       const data = res.data.data;
       setBreResult(data.breResult);
@@ -43,15 +43,19 @@ function ProfileStep({ onComplete, user }: { onComplete: () => void; user: any }
         toast.error('You are not eligible. Check the reasons below.');
       }
     } catch (err: any) {
-      const msg = err.response?.data?.message || 'Failed to update profile';
-      toast.error(msg);
+      let msg = err.response?.data?.message || 'Failed to update profile';
       if (err.response?.data?.details?.errors) {
         const fieldErrors: Record<string, string> = {};
+        const errorMessages: string[] = [];
         err.response.data.details.errors.forEach((e: any) => {
-          fieldErrors[e.field] = e.message;
+          const field = e.path || e.field;
+          fieldErrors[field] = e.message;
+          errorMessages.push(`${field}: ${e.message}`);
         });
         setErrors(fieldErrors);
+        msg = `Validation failed: ${errorMessages.join(', ')}`;
       }
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -61,6 +65,21 @@ function ProfileStep({ onComplete, user }: { onComplete: () => void; user: any }
     <div className="animate-fade-in">
       <h2 className="text-xl font-semibold mb-1">Personal Details</h2>
       <p className="text-surface-500 text-sm mb-6">Fill in your details for eligibility check</p>
+
+      {/* <div className="bg-primary-50 border border-primary-100 rounded-xl p-4 mb-6">
+        <h3 className="text-sm font-semibold text-primary-800 flex items-center gap-2 mb-3">
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          Eligibility Criteria
+        </h3>
+        <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm text-primary-700">
+          <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-primary-400" /> Age between 18 and 60 years</li>
+          <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-primary-400" /> Min. Salary ₹15,000 / month</li>
+          <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-primary-400" /> Valid PAN Card</li>
+          <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-primary-400" /> Salaried or Self-Employed</li>
+        </ul>
+      </div> */}
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -81,7 +100,21 @@ function ProfileStep({ onComplete, user }: { onComplete: () => void; user: any }
           </div>
           <div>
             <label htmlFor="profile-salary" className="label">Monthly Salary (₹)</label>
-            <input id="profile-salary" type="number" className={`input ${errors.monthlySalary ? 'input-error' : ''}`} value={form.monthlySalary} onChange={(e) => setForm({ ...form, monthlySalary: e.target.value })} min={0} required />
+            <input 
+              id="profile-salary" 
+              type="text" 
+              className={`input ${errors.monthlySalary ? 'input-error' : ''} font-mono`} 
+              value={form.monthlySalary ? form.monthlySalary.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",") : ''} 
+              onChange={(e) => {
+                const rawValue = e.target.value.replace(/[^0-9]/g, '');
+                if (!rawValue) {
+                  setForm({ ...form, monthlySalary: '' });
+                } else {
+                  setForm({ ...form, monthlySalary: Number(rawValue).toLocaleString('en-IN') });
+                }
+              }} 
+              required 
+            />
             {errors.monthlySalary && <p className="text-danger-500 text-xs mt-1">{errors.monthlySalary}</p>}
           </div>
         </div>
@@ -118,11 +151,31 @@ function ProfileStep({ onComplete, user }: { onComplete: () => void; user: any }
   );
 }
 
-function DocumentStep({ onComplete, onDocumentId }: { onComplete: () => void; onDocumentId: (id: string) => void }) {
+function DocumentStep({ onComplete, onDocumentId, initialDocumentId }: { onComplete: () => void; onDocumentId: (id: string) => void; initialDocumentId?: string }) {
   const [uploading, setUploading] = useState(false);
   const [document, setDocument] = useState<any>(null);
   const [dragOver, setDragOver] = useState(false);
   const [uploadError, setUploadError] = useState('');
+  const [filePreview, setFilePreview] = useState<{ url: string; type: string } | null>(null);
+
+  useEffect(() => {
+    if (initialDocumentId && !document) {
+      setUploading(true);
+      Promise.all([
+        documentAPI.getById(initialDocumentId),
+        documentAPI.view(initialDocumentId)
+      ]).then(([docRes, viewRes]) => {
+        const doc = docRes.data.data.document;
+        setDocument(doc);
+        const blob = new Blob([viewRes.data], { type: doc.mimeType });
+        setFilePreview({ url: URL.createObjectURL(blob), type: doc.mimeType });
+      }).catch(err => {
+        console.error('Failed to load existing document', err);
+      }).finally(() => {
+        setUploading(false);
+      });
+    }
+  }, [initialDocumentId]);
 
   const handleUpload = async (file: File) => {
     setUploading(true);
@@ -131,13 +184,13 @@ function DocumentStep({ onComplete, onDocumentId }: { onComplete: () => void; on
       const res = await documentAPI.upload(file);
       setDocument(res.data.data.document);
       onDocumentId(res.data.data.document._id);
+      setFilePreview({ url: URL.createObjectURL(file), type: file.type });
       toast.success('Document uploaded & validated!');
-      onComplete();
+      // We no longer auto-advance: onComplete();
     } catch (err: any) {
       const msg = err.response?.data?.message || 'Upload failed';
       setUploadError(msg);
       toast.error(msg);
-      // Show validation details if available
       if (err.response?.data?.details?.validationResults) {
         setDocument({ validationResults: err.response.data.details.validationResults, failed: true });
       }
@@ -158,6 +211,46 @@ function DocumentStep({ onComplete, onDocumentId }: { onComplete: () => void; on
     if (file) handleUpload(file);
   };
 
+  if (document && !document.failed && filePreview) {
+    return (
+      <div className="animate-fade-in">
+        <h2 className="text-xl font-semibold mb-1">Document Verified</h2>
+        <p className="text-surface-500 text-sm mb-6">Your salary slip has been successfully uploaded.</p>
+
+        <div className="bg-accent-50 border border-accent-200 rounded-xl p-4 mb-6">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 bg-accent-100 rounded-lg flex items-center justify-center text-accent-600">
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <div>
+              <p className="font-semibold text-surface-900">{document.originalName}</p>
+              <p className="text-xs text-surface-500">SHA-256: {document.sha256?.substring(0, 16)}...</p>
+            </div>
+          </div>
+
+          <div className="mt-4 border border-surface-200 rounded-lg overflow-hidden bg-white/50 h-64 flex items-center justify-center">
+            {filePreview.type.includes('pdf') ? (
+              <iframe src={filePreview.url} className="w-full h-full" title="Document Preview" />
+            ) : (
+              <img src={filePreview.url} alt="Document Preview" className="max-h-full object-contain" />
+            )}
+          </div>
+        </div>
+
+        <div className="flex gap-4">
+          <button onClick={() => { setDocument(null); setFilePreview(null); }} className="btn-secondary flex-1">
+            Remove & Re-upload
+          </button>
+          <button onClick={onComplete} className="btn-primary flex-1">
+            Continue to Loan Config
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="animate-fade-in">
       <h2 className="text-xl font-semibold mb-1">Upload Salary Slip</h2>
@@ -173,7 +266,7 @@ function DocumentStep({ onComplete, onDocumentId }: { onComplete: () => void; on
           ${uploading ? 'opacity-60 pointer-events-none' : ''}`}
       >
         <input type="file" id="doc-upload" className="hidden" accept=".pdf,.jpg,.jpeg,.png" onChange={handleFileInput} />
-        <label htmlFor="doc-upload" className="cursor-pointer">
+        <label htmlFor="doc-upload" className="cursor-pointer w-full h-full block">
           <div className="w-16 h-16 mx-auto bg-primary-100 rounded-2xl flex items-center justify-center mb-4">
             <svg className="w-8 h-8 text-primary-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
@@ -192,12 +285,10 @@ function DocumentStep({ onComplete, onDocumentId }: { onComplete: () => void; on
         </div>
       )}
 
-      {/* Validation Results */}
-      {document?.validationResults && (
-        <div className="mt-6 card">
-          <h3 className="font-semibold text-sm mb-3">
-            {document.failed ? '❌ Validation Failed' : '✅ Validation Passed'}
-          </h3>
+      {/* Validation Results (Failed case) */}
+      {document?.failed && document.validationResults && (
+        <div className="mt-6 card border-danger-200">
+          <h3 className="font-semibold text-sm mb-3 text-danger-700">❌ Validation Failed</h3>
           <div className="space-y-2">
             {document.validationResults.steps.map((step: any, i: number) => (
               <div key={i} className="flex items-center gap-3 text-sm">
@@ -211,13 +302,6 @@ function DocumentStep({ onComplete, onDocumentId }: { onComplete: () => void; on
               </div>
             ))}
           </div>
-        </div>
-      )}
-
-      {document && !document.failed && (
-        <div className="mt-4 p-4 bg-accent-50 border border-accent-200 rounded-xl animate-fade-in">
-          <p className="text-sm text-accent-700 font-medium">✅ {document.originalName} uploaded successfully</p>
-          <p className="text-xs text-accent-600 mt-1">SHA-256: {document.sha256?.substring(0, 16)}...</p>
         </div>
       )}
     </div>
@@ -341,6 +425,10 @@ function ReviewStep({ documentId, loanConfig, user }: { documentId: string; loan
         tenureDays: loanConfig.tenureDays,
         documentId,
       });
+      // Clear the draft from local storage upon successful submission
+      if (user?._id) {
+        localStorage.removeItem(`loan_draft_${user._id}`);
+      }
       toast.success('🎉 Loan application submitted successfully!');
       router.push('/borrower/status');
     } catch (err: any) {
@@ -418,10 +506,18 @@ export default function BorrowerApplyPage() {
   const router = useRouter();
   const dispatch = useAppDispatch();
   const { isAuthenticated, user } = useAppSelector((s) => s.auth);
+
   const [currentStep, setCurrentStep] = useState(0);
   const [documentId, setDocumentId] = useState('');
   const [loanConfig, setLoanConfig] = useState<any>(null);
+  const [isClient, setIsClient] = useState(false);
+  const [draftLoaded, setDraftLoaded] = useState(false);
 
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
+  // Restore draft state on mount or user login
   useEffect(() => {
     if (!isAuthenticated) {
       router.push('/login');
@@ -431,46 +527,64 @@ export default function BorrowerApplyPage() {
       router.push(`/dashboard/${user?.role?.toLowerCase()}`);
       return;
     }
-    // If profile already completed, skip to step 1
-    if (user?.profileCompleted) {
-      setCurrentStep(1);
-    }
-  }, [isAuthenticated, user, router]);
 
-  if (!isAuthenticated || user?.role !== 'Borrower') return null;
+    // Load from local storage only once per component mount
+    if (user?._id && !draftLoaded) {
+      const draftStr = localStorage.getItem(`loan_draft_${user._id}`);
+      if (draftStr) {
+        try {
+          const draft = JSON.parse(draftStr);
+          if (draft.currentStep !== undefined) setCurrentStep(draft.currentStep);
+          if (draft.documentId) setDocumentId(draft.documentId);
+          if (draft.loanConfig) setLoanConfig(draft.loanConfig);
+        } catch (e) {
+          console.error('Failed to parse draft', e);
+        }
+      }
+      setDraftLoaded(true);
+    }
+  }, [isAuthenticated, user?.role, user?._id, draftLoaded, router]);
+
+  // Save draft state whenever it changes
+  useEffect(() => {
+    if (user?._id && isClient && draftLoaded) {
+      const draft = { currentStep, documentId, loanConfig };
+      localStorage.setItem(`loan_draft_${user._id}`, JSON.stringify(draft));
+    }
+  }, [currentStep, documentId, loanConfig, user?._id, isClient, draftLoaded]);
+
+  if (!isAuthenticated || user?.role !== 'Borrower' || !isClient) return null;
 
   return (
     <div className="min-h-screen bg-surface-50">
       {/* Top Bar */}
-      <header className="bg-surface-900 border-b border-surface-800 px-6 py-4 shadow-lg relative overflow-hidden">
-        <div className="absolute inset-0">
-          <div className="absolute -top-20 -left-20 w-48 h-48 bg-primary-600/20 rounded-full blur-3xl animate-pulse" />
-          <div className="absolute -bottom-20 -right-20 w-48 h-48 bg-accent-600/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '2s' }} />
-        </div>
-        <div className="max-w-4xl mx-auto flex items-center justify-between relative z-10">
+      <header className="bg-white/80 backdrop-blur-xl border-b border-surface-200 sticky top-0 z-50">
+        <div className="w-full px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center shadow-lg shadow-primary-600/30">
-              <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            <div className="w-9 h-9 bg-gradient-to-br from-primary-500 to-primary-700 rounded-xl flex items-center justify-center shadow-lg shadow-primary-500/30">
+              <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
               </svg>
             </div>
-            <span className="font-bold text-white text-lg tracking-wide">LoanGuard</span>
+            <span className="font-bold text-surface-900 text-xl tracking-tight">LoanGuard</span>
           </div>
-          <div className="flex items-center gap-4">
-            <button onClick={() => router.push('/borrower/status')} className="text-surface-300 hover:text-white text-sm font-medium transition-colors">
+          <div className="flex items-center gap-2 sm:gap-4">
+            <button onClick={() => router.push('/borrower/status')} className="text-sm font-medium text-surface-600 hover:text-primary-600 transition-colors hidden sm:block">
               My Applications
             </button>
-            <div className="flex items-center gap-2 border-l border-surface-700 pl-4">
-              <div className="w-8 h-8 bg-surface-800 border border-surface-700 rounded-full flex items-center justify-center text-primary-400 font-semibold text-sm">
+            <div className="hidden sm:block h-6 w-px bg-surface-200" />
+            <div className="flex items-center gap-3">
+              <div className="hidden md:flex flex-col items-end">
+                <span className="text-sm font-semibold text-surface-900">{user?.name}</span>
+                <span className="text-xs text-surface-500">{user?.role}</span>
+              </div>
+              <div className="w-9 h-9 bg-primary-100 text-primary-700 rounded-full flex items-center justify-center font-bold text-sm border border-primary-200">
                 {user?.name?.[0]}
               </div>
             </div>
             <button
-              onClick={() => {
-                dispatch(logout());
-                router.push('/login');
-              }}
-              className="text-surface-400 hover:text-danger-400 flex items-center justify-center w-8 h-8 rounded-lg hover:bg-surface-800 transition-colors"
+              onClick={() => { dispatch(logout()); router.push('/login'); }}
+              className="btn-ghost btn-sm text-surface-500 hover:text-danger-600 p-2 rounded-lg ml-1"
               title="Logout"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -481,21 +595,19 @@ export default function BorrowerApplyPage() {
         </div>
       </header>
 
-      <main className="max-w-4xl mx-auto px-6 py-8">
+      <main className="w-full px-4 sm:px-6 lg:px-8 py-8">
         {/* Stepper */}
-        <div className="flex items-center mb-10">
+        <div className="flex items-center mb-10 max-w-4xl mx-auto">
           {STEPS.map((step, i) => (
             <div key={step} className="flex items-center flex-1 last:flex-none">
               <div className="flex flex-col items-center">
-                <div className={`stepper-dot ${
-                  i < currentStep ? 'stepper-dot-completed' :
+                <div className={`stepper-dot ${i < currentStep ? 'stepper-dot-completed' :
                   i === currentStep ? 'stepper-dot-active' : 'stepper-dot-pending'
-                }`}>
+                  }`}>
                   {i < currentStep ? '✓' : i + 1}
                 </div>
-                <span className={`text-xs mt-2 text-center whitespace-nowrap ${
-                  i <= currentStep ? 'text-primary-600 font-medium' : 'text-surface-400'
-                }`}>{step}</span>
+                <span className={`text-xs mt-2 text-center whitespace-nowrap ${i <= currentStep ? 'text-primary-600 font-medium' : 'text-surface-400'
+                  }`}>{step}</span>
               </div>
               {i < STEPS.length - 1 && (
                 <div className={`stepper-line ${i < currentStep ? 'stepper-line-active' : 'stepper-line-pending'}`} />
@@ -507,7 +619,7 @@ export default function BorrowerApplyPage() {
         {/* Step Content */}
         <div className="card max-w-2xl mx-auto">
           {currentStep === 0 && <ProfileStep user={user} onComplete={() => setCurrentStep(1)} />}
-          {currentStep === 1 && <DocumentStep onComplete={() => setCurrentStep(2)} onDocumentId={setDocumentId} />}
+          {currentStep === 1 && <DocumentStep onComplete={() => setCurrentStep(2)} onDocumentId={setDocumentId} initialDocumentId={documentId} />}
           {currentStep === 2 && <LoanConfigStep onComplete={() => setCurrentStep(3)} onLoanConfig={setLoanConfig} />}
           {currentStep === 3 && <ReviewStep documentId={documentId} loanConfig={loanConfig} user={user} />}
         </div>

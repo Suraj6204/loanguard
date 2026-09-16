@@ -1,67 +1,64 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { env } from '../config/env';
-import { IAuthPayload, UserRole } from '../types';
-import { sendError } from '../utils/response';
-import { auditService } from '../services/auditService';
+import { IAuthPayload } from '../types';
+import { AuditLog } from '../models/AuditLog';
+import { Types } from 'mongoose';
 import { AuditAction, EntityType } from '../types';
 
-export function authenticate(req: Request, res: Response, next: NextFunction): void {
-  const authHeader = req.headers.authorization;
-
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    sendError(res, 'Authentication required', 401, 'UNAUTHENTICATED');
-    return;
-  }
-
-  const token = authHeader.split(' ')[1];
-
+export const authenticate = (req: Request, res: Response, next: NextFunction) => {
   try {
-    const decoded = jwt.verify(token, env.JWT_SECRET) as IAuthPayload;
-    req.user = decoded;
-    next();
-  } catch {
-    sendError(res, 'Invalid or expired token', 401, 'INVALID_TOKEN');
-  }
-}
-
-export function authorize(...allowedRoles: UserRole[]) {
-  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    if (!req.user) {
-      sendError(res, 'Authentication required', 401, 'UNAUTHENTICATED');
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      res.status(401).json({ success: false, message: 'Authentication required', code: 'UNAUTHENTICATED' });
       return;
     }
 
-    if (!allowedRoles.includes(req.user.role)) {
-      // Audit the authorization failure
+    const token = authHeader.split(' ')[1];
+    const decoded = jwt.verify(token, env.JWT_SECRET) as IAuthPayload;
+
+    req.user = decoded;
+    next();
+  } catch (error) {
+    res.status(401).json({ success: false, message: 'Invalid or expired token', code: 'INVALID_TOKEN' });
+  }
+};
+
+export const authorize = (...roles: string[]) => {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    if (!req.user) {
+      res.status(401).json({ success: false, message: 'Authentication required', code: 'UNAUTHENTICATED' });
+      return;
+    }
+
+    if (!roles.includes(req.user.role)) {
+      // Log unauthorized access attempt
       try {
-        await auditService.log({
-          actorId: req.user.userId,
+        const ipAddress = req.ip || req.socket.remoteAddress;
+        const userAgent = req.headers['user-agent'];
+        
+        await AuditLog.create({
+          actorId: new Types.ObjectId(req.user.userId),
           actorRole: req.user.role,
           action: AuditAction.AUTHORIZATION_DENIED,
           entityType: EntityType.USER,
+          entityId: new Types.ObjectId(req.user.userId),
           metadata: {
-            attemptedRoute: req.originalUrl,
+            requiredRoles: roles,
+            attemptedPath: req.originalUrl,
             method: req.method,
-            requiredRoles: allowedRoles,
           },
-          ipAddress: req.ip || req.socket.remoteAddress,
-          userAgent: req.headers['user-agent'],
+          ipAddress,
+          userAgent,
         });
-      } catch {
-        // Don't block the response if audit logging fails
+      } catch (err) {
+        console.error('Failed to log authorization denial:', err);
       }
 
-      sendError(
-        res,
-        'You do not have permission to perform this action',
-        403,
-        'FORBIDDEN',
-        { requiredRoles: allowedRoles, userRole: req.user.role }
-      );
+      res.status(403).json({ success: false, message: `Access denied. Requires one of: ${roles.join(', ')}`, code: 'FORBIDDEN', details: { requiredRoles: roles, userRole: req.user.role } });
       return;
     }
 
     next();
   };
-}
+};

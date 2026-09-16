@@ -31,12 +31,13 @@ export default function CollectionPage() {
 
   const handleRecordPayment = async () => {
     if (!form.utrNumber.trim()) { toast.error('UTR is required'); return; }
-    if (!form.amount || Number(form.amount) <= 0) { toast.error('Amount must be positive'); return; }
+    const rawAmount = Number(form.amount.toString().replace(/,/g, ''));
+    if (!form.amount || rawAmount <= 0) { toast.error('Amount must be positive'); return; }
     setActionLoading(true);
     try {
       const res = await loanAPI.recordPayment(paymentModal.id, {
         utrNumber: form.utrNumber.trim(),
-        amount: Number(form.amount),
+        amount: rawAmount,
         paymentDate: form.paymentDate,
       });
       const msg = res.data.data.autoClose ? '🎉 Payment recorded! Loan is now CLOSED!' : 'Payment recorded successfully!';
@@ -173,7 +174,24 @@ export default function CollectionPage() {
               </div>
               <div>
                 <label htmlFor="payment-amount" className="label">Amount (₹)</label>
-                <input id="payment-amount" type="number" className="input" placeholder="Enter amount" value={form.amount} onChange={e => setForm({...form, amount: e.target.value})} min={0.01} max={paymentModal.outstanding} step={0.01} />
+                <input 
+                  id="payment-amount" 
+                  type="text" 
+                  className="input font-mono" 
+                  placeholder="Enter amount" 
+                  value={form.amount ? form.amount.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",") : ''} 
+                  onChange={(e) => {
+                    let val = e.target.value.replace(/[^0-9.]/g, '');
+                    if ((val.match(/\./g) || []).length > 1) val = val.replace(/\.+$/, '');
+                    if (!val) {
+                      setForm({...form, amount: ''});
+                    } else {
+                      const parts = val.split('.');
+                      parts[0] = parts[0] ? Number(parts[0]).toLocaleString('en-IN') : '0';
+                      setForm({...form, amount: parts.join('.')});
+                    }
+                  }} 
+                />
               </div>
               <div>
                 <label htmlFor="payment-date" className="label">Payment Date</label>

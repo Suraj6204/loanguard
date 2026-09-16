@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { operationsAPI, loanAPI } from '@/services/api';
+import { operationsAPI, loanAPI, documentAPI } from '@/services/api';
 import toast from 'react-hot-toast';
 
 const STATUS_STYLES: Record<string, string> = {
@@ -17,6 +17,8 @@ export default function SanctionPage() {
   const [actionLoading, setActionLoading] = useState('');
   const [expandedLoan, setExpandedLoan] = useState<string | null>(null);
   const [timelines, setTimelines] = useState<Record<string, any[]>>({});
+  const [previewDocUrl, setPreviewDocUrl] = useState<{ url: string, type: string } | null>(null);
+  const [inlineDocs, setInlineDocs] = useState<Record<string, { url: string, type: string }>>({});
 
   useEffect(() => { fetchLoans(); }, []);
 
@@ -51,7 +53,18 @@ export default function SanctionPage() {
     finally { setActionLoading(''); }
   };
 
-  const toggleDetails = async (loanId: string) => {
+  const loadDocumentPreview = async (loanId: string, docId: string) => {
+    if (inlineDocs[loanId]) return; // Already loaded
+    try {
+      const res = await documentAPI.getById(docId);
+      const doc = res.data.data.document;
+      setInlineDocs(prev => ({ ...prev, [loanId]: { url: doc.signedUrl, type: doc.mimeType } }));
+    } catch (err) {
+      console.error('Failed to load document preview:', err);
+    }
+  };
+
+  const toggleDetails = async (loanId: string, docId?: string) => {
     if (expandedLoan === loanId) {
       setExpandedLoan(null);
       return;
@@ -64,6 +77,9 @@ export default function SanctionPage() {
       } catch {
         toast.error('Failed to load timeline');
       }
+    }
+    if (docId) {
+      loadDocumentPreview(loanId, docId);
     }
   };
 
@@ -82,7 +98,7 @@ export default function SanctionPage() {
       </div>
 
       {loading ? (
-        <div className="space-y-4">{[1,2,3].map(i => <div key={i} className="skeleton h-32 rounded-2xl" />)}</div>
+        <div className="space-y-4">{[1, 2, 3].map(i => <div key={i} className="skeleton h-32 rounded-2xl" />)}</div>
       ) : loans.length === 0 ? (
         <div className="empty-state">
           <div className="w-20 h-20 bg-accent-100 rounded-full flex items-center justify-center mb-4 text-3xl">✅</div>
@@ -109,7 +125,7 @@ export default function SanctionPage() {
                     PAN: {loan.borrowerId?.pan || 'N/A'} • Salary: {formatINR(loan.borrowerId?.monthlySalary || 0)}/mo • Applied: {formatDate(loan.createdAt)}
                   </div>
                 </div>
-                
+
                 <div className="flex flex-col gap-2 min-w-[120px]">
                   <button
                     onClick={() => handleSanction(loan._id)}
@@ -125,8 +141,8 @@ export default function SanctionPage() {
                   >
                     ✗ Reject
                   </button>
-                  <button 
-                    onClick={() => toggleDetails(loan._id)} 
+                  <button
+                    onClick={() => toggleDetails(loan._id, loan.documentId?._id)}
                     className="btn-secondary btn-sm w-full mt-1"
                   >
                     {expandedLoan === loan._id ? 'Hide Details' : 'View Details'}
@@ -137,24 +153,47 @@ export default function SanctionPage() {
               {/* Expanded Details Section */}
               {expandedLoan === loan._id && (
                 <div className="mt-6 pt-6 border-t border-surface-100 animate-fade-in grid grid-cols-1 md:grid-cols-2 gap-6">
-                  
+
                   {/* Left Column: BRE & Document */}
                   <div>
                     <h4 className="text-sm font-semibold text-surface-900 mb-3 uppercase tracking-wider">Document & Eligibility</h4>
-                    
+
                     <div className="bg-surface-50 rounded-xl p-4 mb-4 border border-surface-200">
-                      <div className="flex items-center gap-2 mb-2">
+                      <div className="flex items-center gap-2 mb-3">
                         <span className="text-lg">📄</span>
                         <span className="font-medium text-surface-700 text-sm">Document Status</span>
                       </div>
-                      <div className="text-sm flex justify-between items-center bg-white p-2 rounded-lg border border-surface-100 shadow-sm">
-                        <span className="text-surface-500 truncate mr-2" title={loan.documentId?.originalName}>
+                      <div className="text-sm flex justify-between items-center bg-white p-2 rounded-lg border border-surface-100 shadow-sm mb-3">
+                        <span className="text-surface-500 truncate mr-2 font-medium" title={loan.documentId?.originalName}>
                           {loan.documentId?.originalName || 'Unknown file'}
                         </span>
                         {loan.documentId?.validationStatus === 'VALID' ? (
                           <span className="badge bg-accent-100 text-accent-600 shrink-0">✓ VALID</span>
                         ) : (
-                          <span className="badge bg-warning-100 text-warning-600 shrink-0">{loan.documentId?.validationStatus}</span>
+                          <span className="badge bg-warning-100 text-warning-600 shrink-0">{loan.documentId?.validationStatus || 'UNKNOWN'}</span>
+                        )}
+                      </div>
+
+                      {/* Document Cover/Preview */}
+                      <div className="border border-surface-200 rounded-lg overflow-hidden bg-white relative h-48 flex items-center justify-center">
+                        {inlineDocs[loan._id] ? (
+                          <>
+                            {inlineDocs[loan._id].type.includes('pdf') ? (
+                              <iframe src={`${inlineDocs[loan._id].url}#toolbar=0&navpanes=0&scrollbar=0`} className="w-full h-full pointer-events-none" title="Document Preview" />
+                            ) : (
+                              <img src={inlineDocs[loan._id].url} alt="Document Preview" className="w-full h-full object-cover opacity-80" />
+                            )}
+                            <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity cursor-pointer" onClick={() => setPreviewDocUrl(inlineDocs[loan._id])}>
+                              <button className="bg-white text-surface-900 px-4 py-2 rounded-lg font-medium shadow-lg transform transition-transform hover:scale-105">
+                                Preview Full Page
+                              </button>
+                            </div>
+                          </>
+                        ) : (
+                          <div className="text-surface-400 text-xs flex flex-col items-center">
+                            <div className="w-8 h-8 rounded-full border-2 border-surface-300 border-t-primary-500 animate-spin mb-2"></div>
+                            Loading cover...
+                          </div>
                         )}
                       </div>
                     </div>
@@ -190,7 +229,7 @@ export default function SanctionPage() {
                   {/* Right Column: Timeline */}
                   <div>
                     <h4 className="text-sm font-semibold text-surface-900 mb-3 uppercase tracking-wider">Application Timeline</h4>
-                    <div className="bg-surface-50 rounded-xl p-5 border border-surface-200 max-h-[300px] overflow-y-auto">
+                    <div className="bg-surface-50 rounded-xl p-5 border border-surface-200 max-h-[460px] overflow-y-auto">
                       {!timelines[loan._id] ? (
                         <div className="skeleton h-20 rounded-lg"></div>
                       ) : timelines[loan._id].length === 0 ? (
@@ -240,6 +279,36 @@ export default function SanctionPage() {
               <button onClick={handleReject} disabled={!!actionLoading} className="btn-danger flex-1">
                 {actionLoading ? 'Rejecting...' : 'Confirm Rejection'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Document Full Page Preview Modal */}
+      {previewDocUrl && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 sm:p-8 animate-fade-in" onClick={() => setPreviewDocUrl(null)}>
+          <div className="bg-white rounded-2xl w-full h-full max-w-6xl shadow-2xl overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-4 border-b border-surface-200 bg-surface-50">
+              <h3 className="font-semibold text-surface-900">Document Preview</h3>
+              <div className="flex items-center gap-3">
+                <a href={previewDocUrl.url} target="_blank" rel="noopener noreferrer" className="btn-secondary btn-sm">
+                  Open in New Tab
+                </a>
+                <button onClick={() => setPreviewDocUrl(null)} className="p-2 bg-surface-200 hover:bg-surface-300 rounded-full transition-colors">
+                  <svg className="w-5 h-5 text-surface-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+            <div className="flex-1 bg-surface-100 overflow-hidden relative">
+              {previewDocUrl.type.includes('pdf') ? (
+                <iframe src={previewDocUrl.url} className="w-full h-full border-none" title="Full Page Document Preview" />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center overflow-auto p-4">
+                  <img src={previewDocUrl.url} alt="Full Page Document Preview" className="max-w-full max-h-full object-contain" />
+                </div>
+              )}
             </div>
           </div>
         </div>

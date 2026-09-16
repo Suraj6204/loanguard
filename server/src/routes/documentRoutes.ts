@@ -1,16 +1,15 @@
 import { Router } from 'express';
-import multer from 'multer';
-import { documentController } from '../controllers/documentController';
+import * as documentController from '../controllers/documentController';
 import { authenticate, authorize } from '../middleware/auth';
-import { UserRole } from '../types';
+import multer from 'multer';
 import { DOCUMENT_CONFIG } from '../constants';
+import { UserRole } from '../types';
 
+const router = Router();
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: DOCUMENT_CONFIG.MAX_SIZE_BYTES },
 });
-
-const router = Router();
 
 router.use(authenticate);
 
@@ -18,18 +17,23 @@ router.post(
   '/upload',
   authorize(UserRole.BORROWER),
   upload.single('file'),
-  (req, res, next) => documentController.upload(req, res, next)
+  documentController.upload
 );
 
 router.get(
   '/me',
   authorize(UserRole.BORROWER),
-  (req, res, next) => documentController.getMyDocuments(req, res, next)
+  documentController.getMyDocuments
 );
 
 router.get(
   '/:id',
-  (req, res, next) => documentController.getById(req, res, next)
+  documentController.getById
+);
+
+router.get(
+  '/:id/view',
+  documentController.view
 );
 
 export default router;

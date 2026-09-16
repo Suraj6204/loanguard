@@ -20,8 +20,9 @@
   }
 
   body {
-    @apply bg-surface-50 text-surface-900 font-sans;
+    @apply bg-surface-50 text-surface-900 font-sans m-0 p-0 overflow-x-hidden;
     font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+    scrollbar-gutter: stable;
   }
 
   ::selection {

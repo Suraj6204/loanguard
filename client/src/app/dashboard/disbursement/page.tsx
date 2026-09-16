@@ -42,7 +42,7 @@ export default function DisbursementPage() {
           <h1 className="page-title">Disbursement Queue</h1>
           <p className="page-subtitle">Manage loan disbursements</p>
         </div>
-        
+
         <div className="flex bg-surface-200 p-1 rounded-xl self-start sm:self-auto">
           <button
             onClick={() => setActiveTab('PENDING')}
@@ -60,7 +60,7 @@ export default function DisbursementPage() {
       </div>
 
       {loading ? (
-        <div className="space-y-4">{[1,2,3].map(i => <div key={i} className="skeleton h-28 rounded-2xl" />)}</div>
+        <div className="space-y-4">{[1, 2, 3].map(i => <div key={i} className="skeleton h-28 rounded-2xl" />)}</div>
       ) : loans.length === 0 ? (
         <div className="empty-state">
           <div className="w-20 h-20 bg-surface-100 rounded-full flex items-center justify-center mb-4 text-3xl">💰</div>
@@ -89,7 +89,7 @@ export default function DisbursementPage() {
                     <div>
                       <span className="text-surface-500">{activeTab === 'PENDING' ? 'Sanctioned: ' : 'Disbursed: '}</span>
                       <span className="font-medium">
-                        {activeTab === 'PENDING' 
+                        {activeTab === 'PENDING'
                           ? (loan.sanctionedAt ? formatDate(loan.sanctionedAt) : 'N/A')
                           : (loan.disbursedAt ? formatDate(loan.disbursedAt) : 'N/A')
                         }

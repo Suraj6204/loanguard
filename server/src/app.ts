@@ -3,7 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import { env } from './config/env';
 import { generalLimiter } from './middleware/rateLimiter';
-import { errorHandler } from './middleware/errorHandler';
+
 
 // Routes
 import authRoutes from './routes/authRoutes';
@@ -65,10 +65,5 @@ app.use((_req, res) => {
     code: 'NOT_FOUND',
   });
 });
-
-// ============================================================
-// ERROR HANDLER (must be last)
-// ============================================================
-app.use(errorHandler);
 
 export default app;

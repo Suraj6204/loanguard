@@ -23,11 +23,11 @@ interface AuthState {
 }
 
 const initialState: AuthState = {
-  user: typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('user') || 'null') : null,
-  token: typeof window !== 'undefined' ? localStorage.getItem('token') : null,
+  user: null,
+  token: null,
   isLoading: false,
   error: null,
-  isAuthenticated: typeof window !== 'undefined' ? !!localStorage.getItem('token') : false,
+  isAuthenticated: false,
 };
 
 export const loginUser = createAsyncThunk(
@@ -89,6 +89,21 @@ const authSlice = createSlice({
         localStorage.setItem('user', JSON.stringify(action.payload));
       }
     },
+    hydrateAuth: (state) => {
+      if (typeof window !== 'undefined') {
+        const token = localStorage.getItem('token');
+        const user = localStorage.getItem('user');
+        if (token && user) {
+          try {
+            state.token = token;
+            state.user = JSON.parse(user);
+            state.isAuthenticated = true;
+          } catch (e) {
+            // Ignore parse errors
+          }
+        }
+      }
+    }
   },
   extraReducers: (builder) => {
     // Login
@@ -158,5 +173,5 @@ const authSlice = createSlice({
   },
 });
 
-export const { logout, clearError, setUser } = authSlice.actions;
+export const { logout, clearError, setUser, hydrateAuth } = authSlice.actions;
 export default authSlice.reducer;

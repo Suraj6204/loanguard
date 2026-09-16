@@ -1,6 +1,7 @@
 import { Router } from 'express';
-import { loanController } from '../controllers/loanController';
-import { adminController } from '../controllers/adminController';
+import * as loanController from '../controllers/loanController';
+import * as adminController from '../controllers/adminController';
+import * as auditController from '../controllers/auditController';
 import { authenticate, authorize } from '../middleware/auth';
 import { UserRole } from '../types';
 
@@ -12,42 +13,42 @@ router.use(authenticate);
 router.get(
   '/sanction/loans',
   authorize(UserRole.SANCTION, UserRole.ADMIN),
-  (req, res, next) => loanController.getSanctionQueue(req, res, next)
+  loanController.getSanctionQueue
 );
 
 // Operations - Disbursement queue
 router.get(
   '/disbursement/loans',
   authorize(UserRole.DISBURSEMENT, UserRole.ADMIN),
-  (req, res, next) => loanController.getDisbursementQueue(req, res, next)
+  loanController.getDisbursementQueue
 );
 
 // Operations - Collection
 router.get(
   '/collection/loans',
   authorize(UserRole.COLLECTION, UserRole.ADMIN),
-  (req, res, next) => loanController.getCollectionLoans(req, res, next)
+  loanController.getCollectionLoans
 );
 
 // Operations - Sales leads
 router.get(
   '/sales/leads',
   authorize(UserRole.SALES, UserRole.ADMIN),
-  (req, res, next) => adminController.getSalesLeads(req, res, next)
+  adminController.getSalesLeads
 );
 
 // Dashboard stats
 router.get(
   '/dashboard',
   authorize(UserRole.ADMIN),
-  (req, res, next) => adminController.getDashboard(req, res, next)
+  adminController.getDashboard
 );
 
 // Audit logs
 router.get(
   '/audit-logs',
   authorize(UserRole.ADMIN),
-  (req, res, next) => adminController.getAuditLogs(req, res, next)
+  auditController.getAll
 );
 
 export default router;

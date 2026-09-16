@@ -69,12 +69,16 @@ const loanApplicationSchema = new Schema<ILoanApplicationDocument>(
       ref: 'User',
     },
     disbursedAt: Date,
+    disbursementUtr: {
+      type: String,
+      trim: true,
+    },
   },
   {
     timestamps: true,
     toJSON: {
       transform(_doc, ret) {
-        delete ret.__v;
+        delete (ret as any).__v;
         return ret;
       },
     },

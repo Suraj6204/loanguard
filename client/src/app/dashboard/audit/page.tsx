@@ -38,8 +38,8 @@ export default function AuditPage() {
       const filters: Record<string, string> = {};
       if (filterAction) filters.action = filterAction;
       const res = await operationsAPI.getAuditLogs(page, limit, filters);
-      setLogs(res.data.data || []);
-      setTotal(res.data.pagination?.total || 0);
+      setLogs(res.data.data?.logs || []);
+      setTotal(res.data.data?.pagination?.total || 0);
     } catch { toast.error('Failed to load audit logs'); }
     finally { setLoading(false); }
   };

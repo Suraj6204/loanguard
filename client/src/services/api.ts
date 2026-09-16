@@ -82,6 +82,7 @@ export const documentAPI = {
   },
   getById: (id: string) => api.get(`/documents/${id}`),
   getMyDocuments: () => api.get('/documents/me'),
+  view: (id: string) => api.get(`/documents/${id}/view`, { responseType: 'blob' }),
 };
 
 // ============================================================
@@ -92,7 +93,7 @@ export const loanAPI = {
   calculate: (data: { principal: number; tenureDays: number }) =>
     api.post('/applications/calculate', data),
   create: (data: { principal: number; tenureDays: number; documentId: string }) =>
-    api.post('/applications', data),
+    api.post('/applications/apply', data),
   getMyApplications: () => api.get('/applications/me'),
   getById: (id: string) => api.get(`/applications/${id}`),
   getTimeline: (id: string) => api.get(`/loans/${id}/timeline`),

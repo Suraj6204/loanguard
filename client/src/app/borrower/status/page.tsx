@@ -21,8 +21,8 @@ export default function BorrowerStatusPage() {
   const { isAuthenticated, user } = useAppSelector((s) => s.auth);
   const [applications, setApplications] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedApp, setSelectedApp] = useState<any>(null);
-  const [timeline, setTimeline] = useState<any[]>([]);
+  const [expandedAppId, setExpandedAppId] = useState<string | null>(null);
+  const [payments, setPayments] = useState<Record<string, any[]>>({});
 
   useEffect(() => {
     if (!isAuthenticated) { router.push('/login'); return; }
@@ -38,74 +38,72 @@ export default function BorrowerStatusPage() {
     finally { setLoading(false); }
   };
 
-  const viewTimeline = async (app: any) => {
-    setSelectedApp(app);
-    try {
-      const res = await loanAPI.getTimeline(app._id);
-      setTimeline(res.data.data.timeline);
-    } catch { toast.error('Failed to load timeline'); }
+  const toggleDetails = async (app: any) => {
+    if (expandedAppId === app._id) {
+      setExpandedAppId(null);
+      return;
+    }
+    setExpandedAppId(app._id);
+    if (!payments[app._id]) {
+      try {
+        const res = await loanAPI.getPayments(app._id);
+        setPayments(prev => ({ ...prev, [app._id]: res.data.data.payments }));
+      } catch {
+        toast.error('Failed to load payment history');
+      }
+    }
   };
 
-  const formatINR = (n: number) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n);
-  const formatDate = (d: string) => new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-
-  const TIMELINE_ICONS: Record<string, { bg: string; icon: string }> = {
-    APPLICATION_CREATED: { bg: 'bg-primary-500', icon: '📋' },
-    BRE_PASSED: { bg: 'bg-accent-500', icon: '✅' },
-    BRE_FAILED: { bg: 'bg-danger-500', icon: '❌' },
-    DOCUMENT_VALIDATED: { bg: 'bg-primary-400', icon: '📄' },
-    DOCUMENT_UPLOADED: { bg: 'bg-primary-400', icon: '📤' },
-    LOAN_APPROVED: { bg: 'bg-accent-500', icon: '✅' },
-    LOAN_REJECTED: { bg: 'bg-danger-500', icon: '🚫' },
-    LOAN_DISBURSED: { bg: 'bg-accent-600', icon: '💰' },
-    PAYMENT_RECORDED: { bg: 'bg-primary-500', icon: '💳' },
-    LOAN_CLOSED: { bg: 'bg-surface-600', icon: '🔒' },
+  const formatINR = (n: number) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 }).format(n);
+  const formatDate = (d: string) => new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+  const calculateDueDate = (date: string, days: number) => {
+    const d = new Date(date);
+    d.setDate(d.getDate() + days);
+    return formatDate(d.toISOString());
   };
 
   if (!isAuthenticated || user?.role !== 'Borrower') return null;
 
   return (
     <div className="min-h-screen bg-surface-50">
-      <header className="bg-surface-900 border-b border-surface-800 px-6 py-4 shadow-lg relative overflow-hidden">
-        <div className="absolute inset-0">
-          <div className="absolute -top-20 -left-20 w-48 h-48 bg-primary-600/20 rounded-full blur-3xl animate-pulse" />
-          <div className="absolute -bottom-20 -right-20 w-48 h-48 bg-accent-600/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '2s' }} />
-        </div>
-        <div className="max-w-5xl mx-auto flex items-center justify-between relative z-10">
+      <header className="bg-white/80 backdrop-blur-xl border-b border-surface-200 sticky top-0 z-50">
+        <div className="w-full px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center shadow-lg shadow-primary-600/30">
-              <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-              </svg>
-            </div>
-            <span className="font-bold text-white text-lg tracking-wide">LoanGuard</span>
+             <div className="w-9 h-9 bg-gradient-to-br from-primary-500 to-primary-700 rounded-xl flex items-center justify-center shadow-lg shadow-primary-500/30">
+                <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+             </div>
+             <span className="font-bold text-surface-900 text-xl tracking-tight">LoanGuard</span>
           </div>
-          <div className="flex items-center gap-4">
-            <button onClick={() => router.push('/borrower/apply')} className="px-4 py-2 bg-primary-600 text-white text-sm font-semibold rounded-lg shadow-lg shadow-primary-600/30 hover:bg-primary-500 transition-colors">
-              + New Application
-            </button>
-            <div className="flex items-center gap-2 border-l border-surface-700 pl-4">
-              <div className="w-8 h-8 bg-surface-800 border border-surface-700 rounded-full flex items-center justify-center text-primary-400 font-semibold text-sm">
-                {user?.name?.[0]}
-              </div>
-            </div>
-            <button
-              onClick={() => {
-                dispatch(logout());
-                router.push('/login');
-              }}
-              className="text-surface-400 hover:text-danger-400 flex items-center justify-center w-8 h-8 rounded-lg hover:bg-surface-800 transition-colors"
-              title="Logout"
-            >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-              </svg>
-            </button>
+          <div className="flex items-center gap-2 sm:gap-4">
+             <button onClick={() => router.push('/borrower/apply')} className="text-sm font-medium text-surface-600 hover:text-primary-600 transition-colors hidden sm:block">
+               + New Application
+             </button>
+             <div className="hidden sm:block h-6 w-px bg-surface-200" />
+             <div className="flex items-center gap-3">
+                <div className="hidden md:flex flex-col items-end">
+                   <span className="text-sm font-semibold text-surface-900">{user?.name}</span>
+                   <span className="text-xs text-surface-500">{user?.role}</span>
+                </div>
+                <div className="w-9 h-9 bg-primary-100 text-primary-700 rounded-full flex items-center justify-center font-bold text-sm border border-primary-200">
+                  {user?.name?.[0]}
+                </div>
+             </div>
+             <button
+                onClick={() => { dispatch(logout()); router.push('/login'); }}
+                className="btn-ghost btn-sm text-surface-500 hover:text-danger-600 p-2 rounded-lg ml-1"
+                title="Logout"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+              </button>
           </div>
         </div>
       </header>
 
-      <main className="max-w-5xl mx-auto px-6 py-8">
+      <main className="w-full max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-10 bg-white p-8 rounded-3xl border border-surface-200 shadow-sm relative overflow-hidden">
           <div className="absolute top-0 right-0 p-8 opacity-10">
             <svg className="w-32 h-32 text-primary-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -134,74 +132,179 @@ export default function BorrowerStatusPage() {
         ) : (
           <div className="space-y-4">
             {applications.map((app) => (
-              <div key={app._id} className="card hover:shadow-card-hover cursor-pointer" onClick={() => viewTimeline(app)}>
-                <div className="flex items-center justify-between">
+              <div key={app._id} className={`card cursor-pointer transition-all ${expandedAppId === app._id ? 'ring-2 ring-primary-500' : 'hover:shadow-card-hover'}`}>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-2" onClick={() => toggleDetails(app)}>
                   <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-primary-100 rounded-xl flex items-center justify-center">
-                      <span className="text-primary-600 font-bold text-sm">₹</span>
+                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center transition-colors ${expandedAppId === app._id ? 'bg-primary-600 text-white' : 'bg-primary-100 text-primary-600'}`}>
+                      <span className="font-bold text-lg">₹</span>
                     </div>
                     <div>
-                      <p className="font-semibold text-surface-900">{formatINR(app.principal)}</p>
-                      <p className="text-xs text-surface-500">{app.tenureDays} days • {formatDate(app.createdAt)}</p>
+                      <p className="font-semibold text-surface-900 text-lg">{formatINR(app.principal)}</p>
+                      <p className="text-sm text-surface-500">Applied on {formatDate(app.createdAt)}</p>
                     </div>
                   </div>
-                  <div className="text-right">
+                  <div className="flex items-center justify-between sm:justify-end gap-6 sm:w-1/3">
                     <span className={STATUS_STYLES[app.status] || 'badge'}>{app.status}</span>
-                    {app.status === 'DISBURSED' && (
-                      <p className="text-xs text-surface-500 mt-1">
-                        Outstanding: {formatINR(app.outstandingAmount)}
-                      </p>
-                    )}
+                    <button className="p-2 rounded-full hover:bg-surface-100 transition-colors">
+                      <svg className={`w-5 h-5 text-surface-500 transform transition-transform ${expandedAppId === app._id ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
                   </div>
                 </div>
-                {app.rejectionReason && (
-                  <div className="mt-3 p-3 bg-danger-50 rounded-lg text-sm text-danger-600">
-                    Reason: {app.rejectionReason}
+
+                {/* Expanded Details Dropdown */}
+                {expandedAppId === app._id && (
+                  <div className="mt-4 pt-6 border-t border-surface-100 animate-fade-in cursor-default" onClick={e => e.stopPropagation()}>
+                    
+                    {/* Visual Status Stepper */}
+                    <div className="mb-8 px-4">
+                      <div className="flex items-center justify-between relative">
+                        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-full h-1 bg-surface-200 rounded-full z-0"></div>
+                        
+                        {(() => {
+                          const steps = ['APPLIED', 'SANCTIONED', app.status === 'REJECTED' ? 'REJECTED' : 'DISBURSED', 'CLOSED'];
+                          let currentIndex = steps.indexOf(app.status);
+                          // If current status isn't in the list (e.g., intermediate states), fallback
+                          if (currentIndex === -1) {
+                            if (app.status === 'REJECTED') currentIndex = 2;
+                            else currentIndex = 0;
+                          }
+
+                          return steps.map((step, index) => {
+                            const isCompleted = index <= currentIndex;
+                            const isCurrent = index === currentIndex;
+                            const isRejected = step === 'REJECTED';
+                            
+                            let bgColor = 'bg-surface-200';
+                            let textColor = 'text-surface-400';
+                            let icon = '•';
+                            
+                            if (isCompleted) {
+                              if (isRejected) {
+                                bgColor = 'bg-danger-500 ring-4 ring-danger-50';
+                                textColor = 'text-danger-600 font-bold';
+                                icon = '✕';
+                              } else {
+                                bgColor = 'bg-primary-500 ring-4 ring-primary-50';
+                                textColor = 'text-primary-700 font-bold';
+                                icon = '✓';
+                              }
+                            }
+                            if (isCurrent && !isRejected) {
+                              bgColor = 'bg-primary-600 ring-4 ring-primary-100 animate-pulse';
+                              icon = '○';
+                            }
+                            
+                            return (
+                              <div key={step} className="relative z-10 flex flex-col items-center gap-2">
+                                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-sm transition-all duration-500 ${bgColor}`}>
+                                  {icon}
+                                </div>
+                                <span className={`text-[10px] uppercase tracking-wider ${textColor}`}>{step}</span>
+                              </div>
+                            );
+                          });
+                        })()}
+                        
+                        {/* Fill bar overlay for completed steps */}
+                        {(() => {
+                          const steps = ['APPLIED', 'SANCTIONED', app.status === 'REJECTED' ? 'REJECTED' : 'DISBURSED', 'CLOSED'];
+                          const currentIndex = Math.max(0, steps.indexOf(app.status));
+                          const percentage = (currentIndex / (steps.length - 1)) * 100;
+                          const color = app.status === 'REJECTED' ? 'bg-danger-500' : 'bg-primary-500';
+                          return (
+                            <div 
+                              className={`absolute left-0 top-1/2 -translate-y-1/2 h-1 rounded-full z-0 transition-all duration-1000 ease-out ${color}`} 
+                              style={{ width: `${percentage}%` }}
+                            ></div>
+                          );
+                        })()}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                      {/* Left: Summary */}
+                      <div className="space-y-6">
+                        <div>
+                          <h4 className="text-xs font-bold text-surface-400 uppercase tracking-wider mb-3">Loan Details</h4>
+                          <div className="space-y-2 text-sm font-mono text-surface-700">
+                            <div className="flex justify-between"><span className="text-surface-500">Principal:</span><span className="font-medium">{formatINR(app.principal)}</span></div>
+                            <div className="flex justify-between"><span className="text-surface-500">Interest:</span><span className="font-medium">{formatINR(app.interestAmount)}</span></div>
+                            <div className="flex justify-between pt-2 border-t border-surface-100"><span className="text-surface-500">Total Repayment:</span><span className="font-semibold text-surface-900">{formatINR(app.totalRepayment)}</span></div>
+                          </div>
+                        </div>
+                        <div>
+                          <h4 className="text-xs font-bold text-surface-400 uppercase tracking-wider mb-3">Current Status</h4>
+                          <div className="space-y-2 text-sm font-mono text-surface-700">
+                            <div className="flex justify-between"><span className="text-surface-500">Amount Paid:</span><span className="text-success-600 font-medium">{formatINR(app.totalPaid || 0)}</span></div>
+                            <div className="flex justify-between"><span className="text-surface-500">Outstanding:</span><span className="text-danger-600 font-semibold">{formatINR(app.outstandingAmount)}</span></div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Middle: Schedule */}
+                      <div className="space-y-6">
+                        <div>
+                          <h4 className="text-xs font-bold text-surface-400 uppercase tracking-wider mb-3">Schedule</h4>
+                          <div className="space-y-2 text-sm font-mono text-surface-700">
+                            <div className="flex justify-between"><span className="text-surface-500">Tenure:</span><span className="font-medium">{app.tenureDays} days</span></div>
+                            {app.disbursedAt ? (
+                              <>
+                                <div className="flex justify-between"><span className="text-surface-500">Disbursed On:</span><span className="font-medium">{formatDate(app.disbursedAt)}</span></div>
+                                <div className="flex justify-between"><span className="text-surface-500">Due Date:</span><span className="font-semibold text-warning-600">{calculateDueDate(app.disbursedAt, app.tenureDays)}</span></div>
+                              </>
+                            ) : (
+                              <div className="flex justify-between"><span className="text-surface-500">Disbursement:</span><span className="text-surface-400 italic">Pending</span></div>
+                            )}
+                          </div>
+                        </div>
+                        
+                        {app.rejectionReason && (
+                          <div className="p-3 bg-danger-50 rounded-lg text-sm">
+                            <h5 className="font-semibold text-danger-700 mb-1">Rejection Reason</h5>
+                            <p className="text-danger-600">{app.rejectionReason}</p>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Right: Payment History */}
+                      <div>
+                        <h4 className="text-xs font-bold text-surface-400 uppercase tracking-wider mb-3">Payment History</h4>
+                        <div className="bg-surface-50 rounded-xl border border-surface-200 overflow-hidden">
+                          {!payments[app._id] ? (
+                            <div className="p-4 flex justify-center"><div className="w-5 h-5 rounded-full border-2 border-surface-300 border-t-primary-500 animate-spin"></div></div>
+                          ) : payments[app._id].length === 0 ? (
+                            <div className="p-6 text-center text-sm text-surface-500 italic">No payments recorded yet.</div>
+                          ) : (
+                            <div className="max-h-[220px] overflow-y-auto">
+                              <table className="w-full text-left text-xs">
+                                <thead className="bg-surface-100 text-surface-500 sticky top-0">
+                                  <tr>
+                                    <th className="py-2 px-3 font-medium">Amount</th>
+                                    <th className="py-2 px-3 font-medium">Date</th>
+                                    <th className="py-2 px-3 font-medium">UTR</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-surface-100 font-mono text-[11px] text-surface-700">
+                                  {payments[app._id].map(payment => (
+                                    <tr key={payment._id} className="hover:bg-white transition-colors">
+                                      <td className="py-2 px-3 font-semibold text-success-600">{formatINR(payment.amount)}</td>
+                                      <td className="py-2 px-3">{formatDate(payment.paymentDate)}</td>
+                                      <td className="py-2 px-3 text-surface-500">{payment.utrNumber}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
             ))}
-          </div>
-        )}
-
-        {/* Timeline Modal */}
-        {selectedApp && (
-          <div className="modal-overlay" onClick={() => setSelectedApp(null)}>
-            <div className="modal-content max-w-xl" onClick={(e) => e.stopPropagation()}>
-              <div className="flex items-center justify-between mb-6">
-                <div>
-                  <h3 className="text-lg font-semibold">Loan Timeline</h3>
-                  <p className="text-sm text-surface-500">{formatINR(selectedApp.principal)} • {selectedApp.status}</p>
-                </div>
-                <button onClick={() => setSelectedApp(null)} className="btn-ghost btn-sm">✕</button>
-              </div>
-
-              {timeline.length === 0 ? (
-                <p className="text-center text-surface-500 py-8">No timeline events yet</p>
-              ) : (
-                <div className="space-y-0">
-                  {timeline.map((event: any, i: number) => {
-                    const style = TIMELINE_ICONS[event.action] || { bg: 'bg-surface-400', icon: '📝' };
-                    return (
-                      <div key={i} className="timeline-item">
-                        <div className={`timeline-dot ${style.bg}`}>
-                          <span className="text-xs">{style.icon}</span>
-                        </div>
-                        <div>
-                          <p className="font-medium text-sm text-surface-800">
-                            {event.action.replace(/_/g, ' ')}
-                          </p>
-                          <p className="text-xs text-surface-500 mt-0.5">
-                            {formatDate(event.createdAt)}
-                            {event.actorId?.name && ` • by ${event.actorId.name}`}
-                          </p>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
           </div>
         )}
       </main>

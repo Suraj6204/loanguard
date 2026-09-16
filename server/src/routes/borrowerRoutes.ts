@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { borrowerController } from '../controllers/borrowerController';
+import * as borrowerController from '../controllers/borrowerController';
 import { authenticate, authorize } from '../middleware/auth';
 import { validate } from '../middleware/validate';
 import { profileSchema } from '../validators';
@@ -14,13 +14,13 @@ router.post(
   '/profile',
   authorize(UserRole.BORROWER),
   validate(profileSchema),
-  (req, res, next) => borrowerController.updateProfile(req, res, next)
+  borrowerController.updateProfile
 );
 
 router.get(
   '/eligibility',
   authorize(UserRole.BORROWER),
-  (req, res, next) => borrowerController.checkEligibility(req, res, next)
+  borrowerController.checkEligibility
 );
 
 export default router;
