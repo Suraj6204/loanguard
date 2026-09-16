@@ -107,6 +107,7 @@ export interface IDocument {
   mimeType: string;
   size: number;
   sha256: string;
+  fileData?: Buffer;
   validationStatus: DocumentValidationStatus;
   validationResults: IValidationResults;
   createdAt: Date;

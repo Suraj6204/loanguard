@@ -56,9 +56,14 @@ export default function SanctionPage() {
   const loadDocumentPreview = async (loanId: string, docId: string) => {
     if (inlineDocs[loanId]) return; // Already loaded
     try {
-      const res = await documentAPI.getById(docId);
-      const doc = res.data.data.document;
-      setInlineDocs(prev => ({ ...prev, [loanId]: { url: doc.signedUrl, type: doc.mimeType } }));
+      const [docRes, viewRes] = await Promise.all([
+        documentAPI.getById(docId),
+        documentAPI.view(docId)
+      ]);
+      const doc = docRes.data.data.document;
+      const blob = new Blob([viewRes.data], { type: doc.mimeType });
+      const objectUrl = URL.createObjectURL(blob);
+      setInlineDocs(prev => ({ ...prev, [loanId]: { url: objectUrl, type: doc.mimeType } }));
     } catch (err) {
       console.error('Failed to load document preview:', err);
     }

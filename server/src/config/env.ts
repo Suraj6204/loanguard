@@ -11,11 +11,7 @@ export const env = {
 
   JWT_SECRET: process.env.JWT_SECRET || 'dev-secret-change-in-production',
   JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || '24h',
-
-  CLOUDINARY_CLOUD_NAME: process.env.CLOUDINARY_CLOUD_NAME || '',
-  CLOUDINARY_API_KEY: process.env.CLOUDINARY_API_KEY || '',
-  CLOUDINARY_API_SECRET: process.env.CLOUDINARY_API_SECRET || '',
-  CLOUDINARY_FOLDER: process.env.CLOUDINARY_FOLDER || 'salary-slips',
+  BRE_URL: process.env.BRE_URL || 'http://localhost:5001/api/bre/evaluate',
 
   CORS_ORIGIN: process.env.CORS_ORIGIN || 'http://localhost:3000',
 

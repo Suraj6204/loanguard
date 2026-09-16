@@ -1,81 +1,11 @@
 import { Request, Response } from 'express';
-import https from 'https';
 import { v4 as uuidv4 } from 'uuid';
-import { cloudinary } from '../config/cloudinary';
-import { env } from '../config/env';
 import { Types } from 'mongoose';
 import { DocumentModel } from '../models/Document';
 import { AuditLog } from '../models/AuditLog';
 import { DOCUMENT_CONFIG } from '../constants';
 import { DocumentValidationStatus, IValidationStepResult, AuditAction, EntityType } from '../types';
 import { computeSHA256, getFileExtension } from '../utils/helpers';
-
-// ------------------------------------------------------------------
-// STORAGE UTILITIES
-// ------------------------------------------------------------------
-
-const folder = env.CLOUDINARY_FOLDER;
-
-const isStorageConfigured = (): boolean => {
-  const cloudName = env.CLOUDINARY_CLOUD_NAME;
-  const apiKey = env.CLOUDINARY_API_KEY;
-  const apiSecret = env.CLOUDINARY_API_SECRET;
-
-  if (!cloudName || !apiKey || !apiSecret) return false;
-  return true;
-};
-
-const uploadFileToCloud = async (buffer: Buffer, storageKey: string, mimeType: string): Promise<string> => {
-  if (!isStorageConfigured()) {
-    console.warn('⚠️ Cloudinary credentials are missing. Using mock storage.');
-    return `mock-storage/${storageKey.replace(/[^a-zA-Z0-9_\-\.]/g, '_')}`;
-  }
-
-  return new Promise((resolve, reject) => {
-    const isImage = mimeType.startsWith('image/');
-    const resourceType = isImage ? 'image' : 'raw';
-    const cleanPublicId = storageKey.replace(/[^a-zA-Z0-9_\-\.]/g, '_');
-
-    const uploadStream = cloudinary.uploader.upload_stream(
-      {
-        public_id: cleanPublicId,
-        folder,
-        resource_type: resourceType,
-        overwrite: true,
-      },
-      (error, result) => {
-        if (error || !result) {
-          console.error('Cloudinary upload error:', error);
-          if (error?.message?.includes('disabled') || error?.http_code === 401) {
-            console.warn('⚠️ Cloudinary disabled/unauthorized. Mock storage fallback.');
-            return resolve(`mock-storage/${cleanPublicId}`);
-          }
-          return reject(new Error(error?.message || 'Failed to upload document'));
-        }
-        resolve(result.public_id);
-      }
-    );
-    uploadStream.end(buffer);
-  });
-};
-
-const getSignedUrl = async (storageKey: string): Promise<string> => {
-  if (!isStorageConfigured() || storageKey.startsWith('mock-storage/')) {
-    return `https://res.cloudinary.com/demo/image/upload/sample.jpg`;
-  }
-  try {
-    const isPdf = storageKey.toLowerCase().endsWith('.pdf');
-    const resourceType = isPdf ? 'raw' : 'image';
-    return cloudinary.url(storageKey, {
-      resource_type: resourceType,
-      secure: true,
-      sign_url: true,
-    });
-  } catch (error) {
-    console.error('Cloudinary URL generation error:', error);
-    return `https://res.cloudinary.com/demo/image/upload/sample.jpg`;
-  }
-};
 
 // ------------------------------------------------------------------
 // ROUTE HANDLERS
@@ -193,11 +123,10 @@ export const upload = async (req: Request, res: Response) => {
       return;
     }
 
-    // 8. Upload
-    const storageKey = `salary-slips/${uploadedBy}/${uuidv4()}${extension}`;
-    await uploadFileToCloud(file.buffer, storageKey, file.mimetype);
+    // 8. Generate local storage key (for compatibility, not strictly needed since data is in Mongo now)
+    const storageKey = `local-mongo/${uploadedBy}/${uuidv4()}${extension}`;
 
-    // 9. Save DB
+    // 9. Save DB with Buffer data
     const document = await DocumentModel.create({
       uploadedBy,
       storageKey,
@@ -205,6 +134,7 @@ export const upload = async (req: Request, res: Response) => {
       mimeType: detectedType?.mime || file.mimetype,
       size: file.size,
       sha256,
+      fileData: file.buffer, // Save raw buffer data to DB
       validationStatus: DocumentValidationStatus.VALID,
       validationResults: { steps, overall: true },
     });
@@ -248,16 +178,11 @@ export const getById = async (req: Request, res: Response) => {
       return;
     }
 
-    const signedUrl = await getSignedUrl(document.storageKey);
-
     res.status(200).json({
       success: true,
       message: 'Success',
       data: {
-        document: {
-          ...document.toJSON(),
-          signedUrl,
-        },
+        document: document.toJSON(), // No signedUrl anymore
       },
     });
   } catch (error: any) {
@@ -288,8 +213,9 @@ export const view = async (req: Request, res: Response) => {
     const requesterId = req.user!.userId;
     const requesterRole = req.user!.role;
 
-    const document = await DocumentModel.findById(documentId);
-    if (!document) {
+    // Explicitly select the +fileData buffer so we can send it
+    const document = await DocumentModel.findById(documentId).select('+fileData');
+    if (!document || !document.fileData) {
       res.status(404).send('Document not found');
       return;
     }
@@ -299,16 +225,9 @@ export const view = async (req: Request, res: Response) => {
       return;
     }
 
-    const signedUrl = await getSignedUrl(document.storageKey);
-
-    https.get(signedUrl, (stream) => {
-      res.setHeader('Content-Type', document.mimeType);
-      res.setHeader('Content-Disposition', `inline; filename="${document.originalName}"`);
-      stream.pipe(res);
-    }).on('error', (err) => {
-      console.error('Stream error:', err);
-      res.status(500).send('Error streaming document');
-    });
+    res.setHeader('Content-Type', document.mimeType);
+    res.setHeader('Content-Disposition', `inline; filename="${document.originalName}"`);
+    res.send(document.fileData);
   } catch (error: any) {
     console.error('View document error:', error);
     res.status(500).send('Internal server error');

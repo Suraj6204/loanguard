@@ -37,6 +37,10 @@ const documentSchema = new Schema<IDocumentModel>(
       required: true,
       unique: true,
     },
+    fileData: {
+      type: Buffer,
+      select: false, // Don't fetch the massive binary blob by default
+    },
     validationStatus: {
       type: String,
       enum: Object.values(DocumentValidationStatus),
